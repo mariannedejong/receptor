@@ -15,7 +15,7 @@
           delegate_to: localhost
           become: false
           ansible.builtin.uri:
-            url: "{{ controller_hostname }}/api/v2/tokens/"
+            url: "{{ controller_hostname }}/api/controller/v2/tokens/"
             user: "{{ controller_username }}"
             password: "{{ controller_password }}"
             method: POST
@@ -34,7 +34,7 @@
       delegate_to: localhost
       become: false
       ansible.builtin.uri:
-        url: "{{ controller_hostname }}/api/v2/instances/?hostname={{ ansible_fqdn }}"
+        url: "{{ controller_hostname }}/api/controller/v2/instances/?hostname={{ ansible_fqdn }}"
         headers:
           Authorization: "Bearer {{ controller_oauthtoken }}"
       register: _instance_info
