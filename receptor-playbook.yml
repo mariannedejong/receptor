@@ -1,0 +1,93 @@
+---
+- name: Install and configure Receptor
+  hosts: all
+  become: true
+  gather_facts: true
+  vars_files:
+    - vars/main.yml
+
+  tasks:
+    - name: Setup authentication
+      when: controller_oauthtoken is not defined
+      no_log: true
+      block:
+        - name: Get the Authentication Token for the future requests
+          delegate_to: localhost
+          become: false
+          ansible.builtin.uri:
+            url: "{{ controller_hostname }}/api/v2/tokens/"
+            user: "{{ controller_username }}"
+            password: "{{ controller_password }}"
+            method: POST
+            force_basic_auth: true
+            status_code: 201
+          register: _authtoken_res
+
+        - name: Set the oauth token to be used since now
+          delegate_to: localhost
+          become: false
+          ansible.builtin.set_fact:
+            controller_oauthtoken: "{{ _authtoken_res.json.token }}"
+            controller_oauthtoken_url: "{{ _authtoken_res.json.url }}"
+
+    - name: Get instance information
+      delegate_to: localhost
+      become: false
+      ansible.builtin.uri:
+        url: "{{ controller_hostname }}/api/v2/instances/?hostname={{ ansible_fqdn }}"
+        headers:
+          Authorization: "Bearer {{ controller_oauthtoken }}"
+      register: _instance_info
+
+    - name: Get instance ID
+      ansible.builtin.set_fact:
+        _instance_id: "{{ _instance_info.json.results | map(attribute='id') | first }}"
+
+    - name: Download install package
+      delegate_to: localhost
+      become: false
+      ansible.builtin.get_url:
+        url: "{{ aap_api_url }}/{{ _instance_id }}/install_bundle/"
+        dest: "{{ install_dir }}"
+        mode: 0664
+        headers:
+          Authorization: "Bearer {{ controller_oauthtoken }}"
+
+    - name: Extract install bundle
+      delegate_to: localhost
+      become: false
+      ansible.builtin.unarchive:
+        src: "{{ install_bundle }}"
+        dest: "{{ install_dir }}"
+
+    - name: Install requirements
+      run_once: true
+      delegate_to: localhost
+      become: false
+      ansible.builtin.command: ansible-galaxy collection install -r {{ requirements_file }} --force
+      changed_when: false
+
+    - name: Include role
+      ansible.builtin.include_role:
+        name: ansible.receptor.setup
+
+    - name: Cleanup downloaded files
+      delegate_to: localhost
+      become: false
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ install_bundle }}"
+        - "{{ install_dir }}/{{ inventory_hostname }}_install_bundle"
+
+    - name: "Delete the Authentication Token used"
+      ansible.builtin.uri:
+        url: "{{ controller_hostname }}{{ controller_oauthtoken_url }}"
+        user: "{{ controller_username }}"
+        password: "{{ controller_password }}"
+        method: DELETE
+        force_basic_auth: true
+        validate_certs: "{{ controller_validate_certs }}"
+        status_code: 204
+      when: controller_oauthtoken_url is defined
