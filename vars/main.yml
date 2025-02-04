@@ -1,0 +1,30 @@
+---
+controller_hostname: https://aap-aap.apps-crc.testing
+controller_username: admin
+aap_api_url: "{{ controller_hostname }}/api/controller/v2/instances"
+
+install_dir: /tmp
+install_bundle: "{{ install_dir }}/{{ inventory_hostname }}_install_bundle.tar.gz"
+
+requirements_file: "{{ install_dir }}/{{ inventory_hostname }}_install_bundle/requirements.yml"
+
+routable_hostname: "{{ inventory_hostname }}"
+
+receptor_verify: true
+receptor_tls: true
+receptor_work_commands:
+  ansible-runner:
+    command: ansible-runner
+    params: worker
+    allowruntimeparams: true
+    verifysignature: true
+custom_worksign_public_keyfile: "{{ install_dir }}/{{ inventory_hostname }}_install_bundle/receptor/work-public-key.pem"
+custom_tls_certfile: "{{ install_dir }}/{{ inventory_hostname }}_install_bundle/receptor/tls/receptor.crt"
+custom_tls_keyfile: "{{ install_dir }}/{{ inventory_hostname }}_install_bundle/receptor/tls/receptor.key"
+custom_ca_certfile: "{{ install_dir }}/{{ inventory_hostname }}_install_bundle/receptor/tls/ca/receptor-ca.crt"
+receptor_protocol: tcp
+receptor_listener: true
+receptor_port: 27199
+receptor_dependencies:
+  - ansible-runner
+  - receptorctl
